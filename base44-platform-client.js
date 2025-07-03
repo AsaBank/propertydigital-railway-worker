@@ -6,12 +6,19 @@ class Base44PlatformClient {
     constructor(config = {}) {
         // Configuration - can be overridden when actual API details are available
         this.config = {
-            baseUrl: config.baseUrl || process.env.BASE44_API_URL || 'https://api.base44.com/v1',
+            baseUrl: config.baseUrl || process.env.BASE44_API_URL || 'https://app.base44.com',
             appId: config.appId || process.env.BASE44_APP_ID || 'e4e3e4ec3533478cb91d9112dca99f47',
             apiKey: config.apiKey || process.env.BASE44_API_KEY,
             authToken: config.authToken || process.env.BASE44_AUTH_TOKEN,
             workspaceId: config.workspaceId || process.env.BASE44_WORKSPACE_ID,
             timeout: config.timeout || 10000
+        };
+
+        // Real Base44 endpoints (implemented by Base44 AI)
+        this.endpoints = {
+            collaboration: `/apps/${this.config.appId}/functions/cursorAIIntegration`,
+            bridgePage: `/CursorAIBridge`,
+            health: `/apps/${this.config.appId}/health`
         };
 
         this.client = axios.create({
