@@ -7,7 +7,25 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // 🔧 MEMORY OPTIMIZATION: Smaller limits
-app.use(cors({ origin: '*' }));
+// 🔒 SECURITY FIX: Restrict CORS to specific origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+    process.env.ALLOWED_ORIGINS.split(',') : 
+    ['http://localhost:3000', 'https://propertydigital.app'];
+
+app.use(cors({ 
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            console.warn(`🚫 CORS blocked origin: ${origin}`);
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 
 let mongoClient;
@@ -17,6 +35,17 @@ let db;
 async function connectToMongoDB() {
     try {
         console.log('🔗 Connecting to MongoDB...');
+        
+        // 🔧 MEMORY FIX: Clean up existing connection before retrying
+        if (mongoClient) {
+            try {
+                await mongoClient.close();
+                console.log('🧹 Cleaned up previous connection attempt');
+            } catch (closeError) {
+                console.warn('⚠️ Error closing previous connection:', closeError.message);
+            }
+        }
+        
         mongoClient = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 5,
             serverSelectionTimeoutMS: 10000,
@@ -27,6 +56,18 @@ async function connectToMongoDB() {
         console.log('✅ MongoDB connected successfully!');
     } catch (error) {
         console.error('❌ MongoDB connection failed:', error);
+        
+        // 🔧 MEMORY FIX: Clean up failed connection attempt
+        if (mongoClient) {
+            try {
+                await mongoClient.close();
+                mongoClient = null;
+                db = null;
+            } catch (closeError) {
+                console.warn('⚠️ Error closing failed connection:', closeError.message);
+            }
+        }
+        
         setTimeout(connectToMongoDB, 5000);
     }
 }
@@ -118,13 +159,52 @@ app.post('/api/massive-import', async (req, res) => {
                     return cleaned;
                 });
                 
-                // Insert batch
-                const result = await db.collection(entityType.toLowerCase()).insertMany(cleanedBatch, {
-                    ordered: false // Continue even if some records fail
-                });
-                
-                processed += result.insertedCount;
-                console.log(`✅ Batch ${Math.ceil((i + batchSize) / batchSize)} completed: ${result.insertedCount}/${batch.length} records`);
+                // Insert batch with proper error tracking
+                try {
+                    const result = await db.collection(entityType.toLowerCase()).insertMany(cleanedBatch, {
+                        ordered: false // Continue even if some records fail
+                    });
+                    
+                    processed += result.insertedCount;
+                    console.log(`✅ Batch ${Math.ceil((i + batchSize) / batchSize)} completed: ${result.insertedCount}/${batch.length} records`);
+                    
+                    // 🔧 LOGIC FIX: Track partial failures when some records in batch fail
+                    if (result.insertedCount < batch.length) {
+                        const failedCount = batch.length - result.insertedCount;
+                        console.warn(`⚠️ Partial batch failure: ${failedCount} records failed in batch ${Math.ceil((i + batchSize) / batchSize)}`);
+                        errors.push({
+                            batch: Math.ceil((i + batchSize) / batchSize),
+                            error: `Partial insertion failure: ${failedCount} records failed`,
+                            recordsInBatch: batch.length,
+                            successful: result.insertedCount,
+                            failed: failedCount,
+                            type: 'partial_failure'
+                        });
+                    }
+                } catch (insertError) {
+                    // 🔧 LOGIC FIX: Handle bulk write errors properly
+                    if (insertError.code === 11000 || insertError.name === 'BulkWriteError') {
+                        // Handle duplicate key errors and other bulk write errors
+                        const successCount = insertError.result ? insertError.result.insertedCount : 0;
+                        const failedCount = batch.length - successCount;
+                        
+                        processed += successCount;
+                        console.warn(`⚠️ Bulk write error in batch ${Math.ceil((i + batchSize) / batchSize)}: ${successCount}/${batch.length} succeeded`);
+                        
+                        errors.push({
+                            batch: Math.ceil((i + batchSize) / batchSize),
+                            error: `Bulk write error: ${insertError.message}`,
+                            recordsInBatch: batch.length,
+                            successful: successCount,
+                            failed: failedCount,
+                            type: 'bulk_write_error',
+                            details: insertError.writeErrors ? insertError.writeErrors.slice(0, 3) : []
+                        });
+                    } else {
+                        // Complete batch failure
+                        throw insertError;
+                    }
+                }
                 
             } catch (batchError) {
                 console.error(`❌ Batch error:`, batchError.message);
