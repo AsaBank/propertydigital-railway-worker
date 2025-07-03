@@ -7,15 +7,16 @@
     "start": "node server.js",
     "test": "./quick-test.sh",
     "test-base44": "node test-base44-real-integration.js",
+    "test-api-key": "node test-with-api-key.js",
     "fix-csv": "curl -X POST http://localhost:8080/api/base44/fix-csv-upload"
   },
   "dependencies": {
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
+    "ethers": "^6.8.0",
     "express": "^4.18.2",
     "mongodb": "^6.0.0",
-    "cors": "^2.8.5",
     "uuid": "^9.0.0",
-    "axios": "^1.6.0",
-    "ethers": "^6.8.0",
     "ws": "^8.14.0"
   },
   "engines": {

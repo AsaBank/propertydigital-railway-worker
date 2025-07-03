@@ -14,23 +14,27 @@ class Base44PlatformClient {
             timeout: config.timeout || 10000
         };
 
-        // Real Base44 endpoints (implemented by Base44 AI)
+        // Real Base44 endpoints (implemented and enhanced by Base44 AI)
         this.endpoints = {
-            // Original collaboration endpoint
+            // ENHANCED: Original collaboration endpoint
             collaboration: `/apps/${this.config.appId}/functions/cursorAIIntegration`,
             
-            // NEW: Dedicated Cursor AI API endpoints
+            // ENHANCED: Dedicated Cursor AI API endpoints  
             cursorAPI: `/apps/${this.config.appId}/functions/base44ApiForCursorAI`,
+            
+            // NEW ENHANCED ENDPOINTS from Base44 AI:
             status: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/status`,
+            structure: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/structure`,
+            analyze: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/analyze`,
+            
+            // Legacy endpoints (keeping for compatibility):
             entities: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/entities`, 
             issues: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/issues`,
-            structure: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/structure`,
             collaborate: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/collaborate`,
-            analyze: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/analyze`,
             fix: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/fix`,
             test: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/test`,
             
-            // Management pages
+            // ENHANCED: Management pages (now working without parsing errors!)
             bridgePage: `/CursorAIBridge`,
             integrationPage: `/Base44Integration`
         };
@@ -388,6 +392,56 @@ class Base44PlatformClient {
         } catch (error) {
             console.error('❌ Failed to get Base44 status:', error.message);
             return { status: 'disconnected', error: error.message };
+        }
+    }
+
+    // ENHANCED: Get system status using Base44's new enhanced status endpoint
+    async getSystemStatus() {
+        console.log('📊 Getting Base44 system status...');
+        
+        try {
+            const result = await this.client.get(this.endpoints.status);
+            console.log('✅ Base44 system status retrieved!', result.data);
+            return result.data;
+        } catch (error) {
+            console.error('❌ Failed to get system status:', error.message);
+            return { success: false, error: error.message, status: 'disconnected' };
+        }
+    }
+
+    // ENHANCED: Get system structure using Base44's new structure endpoint
+    async getSystemStructure() {
+        console.log('🏗️ Getting Base44 system structure...');
+        
+        try {
+            const result = await this.client.get(this.endpoints.structure);
+            console.log('✅ Base44 system structure retrieved!', result.data);
+            return result.data;
+        } catch (error) {
+            console.error('❌ Failed to get system structure:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // ENHANCED: Analyze using Base44's enhanced analyze endpoint
+    async analyzeWithBase44Enhanced(analysisData) {
+        console.log('🔍 Starting enhanced analysis with Base44 AI...');
+        
+        try {
+            const payload = {
+                ...analysisData,
+                source: 'cursor_ai',
+                enhanced: true,
+                timestamp: new Date().toISOString(),
+                version: '2.0' // Enhanced version
+            };
+
+            const result = await this.client.post(this.endpoints.analyze, payload);
+            console.log('✅ Enhanced Base44 analysis successful!', result.data);
+            return result.data;
+        } catch (error) {
+            console.error('❌ Enhanced analysis failed:', error.message);
+            return { success: false, error: error.message };
         }
     }
 

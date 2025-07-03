@@ -35,6 +35,12 @@ class Base44IntegrationTester {
             // Test 3: Get Base44 status
             await this.testBase44Status();
             
+            // Test 3.1: ENHANCED - Test Base44 enhanced status  
+            await this.testBase44EnhancedStatus();
+            
+            // Test 3.2: ENHANCED - Test Base44 system structure
+            await this.testBase44SystemStructure();
+            
             // Test 4: Get Base44 issues (including CSV bug)
             await this.testBase44Issues();
             
@@ -192,6 +198,43 @@ class Base44IntegrationTester {
         }
     }
 
+    async testBase44EnhancedStatus() {
+        this.log('🚀 Testing Base44 ENHANCED status endpoint...', 'test');
+        
+        try {
+            if (this.base44Client) {
+                const enhancedStatus = await this.base44Client.getSystemStatus();
+                this.log('✅ Enhanced Base44 status retrieved successfully', 'success');
+                this.log(`Enhanced status: ${JSON.stringify(enhancedStatus, null, 2)}`, 'info');
+                return enhancedStatus;
+            } else {
+                // Test via server endpoint if direct client not available
+                const response = await axios.get(`${this.serverUrl}/api/base44/status`);
+                this.log('Enhanced status via server endpoint', 'success');
+                return response.data;
+            }
+        } catch (error) {
+            this.log(`Enhanced status test failed: ${error.message}`, 'error');
+        }
+    }
+
+    async testBase44SystemStructure() {
+        this.log('🏗️ Testing Base44 ENHANCED system structure endpoint...', 'test');
+        
+        try {
+            if (this.base44Client) {
+                const systemStructure = await this.base44Client.getSystemStructure();
+                this.log('✅ Enhanced Base44 system structure retrieved successfully', 'success');
+                this.log(`System structure: ${JSON.stringify(systemStructure, null, 2)}`, 'info');
+                return systemStructure;
+            } else {
+                this.log('Direct client not available, skipping structure test', 'info');
+            }
+        } catch (error) {
+            this.log(`Enhanced structure test failed: ${error.message}`, 'error');
+        }
+    }
+
     async testCodeAnalysis() {
         this.log('Testing code analysis with Base44...', 'test');
         
@@ -235,6 +278,19 @@ const AdvancedDataImporter = () => {
             this.log('Code analysis completed', 'success');
             this.log(`Analysis result: ${JSON.stringify(response.data, null, 2)}`, 'info');
             
+            // Test enhanced analysis if client available
+            if (this.base44Client) {
+                this.log('🔍 Testing ENHANCED analysis...', 'test');
+                const enhancedAnalysis = await this.base44Client.analyzeWithBase44Enhanced({
+                    filePath: 'components/migration/AdvancedDataImporter.jsx',
+                    code: sampleCode,
+                    issueDescription: 'CSV upload button not responding',
+                    analysisType: 'enhanced_bug_analysis'
+                });
+                this.log('✅ Enhanced analysis completed', 'success');
+                this.log(`Enhanced analysis: ${JSON.stringify(enhancedAnalysis, null, 2)}`, 'info');
+            }
+            
             return response.data;
         } catch (error) {
             this.log(`Code analysis failed: ${error.message}`, 'error');
@@ -267,8 +323,10 @@ const AdvancedDataImporter = () => {
         
         this.log('\n🔧 NEXT STEPS:', 'info');
         this.log('1. Add your Base44 API key to .env file', 'info');
-        this.log('2. Visit https://app.base44.com/Base44Integration for documentation', 'info');
-        this.log('3. Start collaborating with Base44 AI on the CSV upload bug!', 'info');
+        this.log('2. Visit https://app.base44.com/CursorAIBridge for the enhanced management interface!', 'info');
+        this.log('3. Use the enhanced API endpoints: /status, /structure, /analyze', 'info');
+        this.log('4. Start collaborating with Base44 AI on the CSV upload bug!', 'info');
+        this.log('5. Check /Base44Integration for full documentation', 'info');
     }
 }
 
