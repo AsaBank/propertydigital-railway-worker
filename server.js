@@ -116,7 +116,115 @@ app.get('/api/base44/test', async (req, res) => {
     }
 });
 
-// Base 44 sync endpoint
+// NEW: Real Base44 API endpoints
+app.get('/api/base44/status', async (req, res) => {
+    try {
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        const status = await base44Manager.client.getBase44Status();
+        res.json({
+            status: 'success',
+            base44Status: status,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/base44/issues', async (req, res) => {
+    try {
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        const issues = await base44Manager.client.getBase44Issues();
+        res.json({
+            status: 'success',
+            issues: issues,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/base44/collaborate', async (req, res) => {
+    try {
+        const { task } = req.body;
+
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        if (!task) {
+            return res.status(400).json({
+                error: 'Task is required for collaboration'
+            });
+        }
+
+        const collaboration = await base44Manager.client.startBase44Collaboration(task);
+        res.json({
+            status: 'collaboration_started',
+            collaboration,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/base44/analyze', async (req, res) => {
+    try {
+        const { filePath, code, issueDescription } = req.body;
+
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        const analysis = await base44Manager.client.analyzeCodeWithBase44(filePath, code, issueDescription);
+        res.json({
+            status: 'analysis_completed',
+            analysis,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/base44/fix', async (req, res) => {
+    try {
+        const { issueId, proposedFix } = req.body;
+
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        const fixResponse = await base44Manager.client.proposeFixToBase44(issueId, proposedFix);
+        res.json({
+            status: 'fix_proposed',
+            response: fixResponse,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Base 44 sync endpoint (legacy)
 app.post('/api/base44/sync', async (req, res) => {
     try {
         const { entityType, data } = req.body;
@@ -150,6 +258,84 @@ app.post('/api/base44/sync', async (req, res) => {
         res.status(500).json({
             error: error.message,
             timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 🚀 SPECIAL: CSV Upload Bug Collaboration Endpoint
+app.post('/api/base44/fix-csv-upload', async (req, res) => {
+    try {
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base44 not connected'
+            });
+        }
+
+        console.log('🐛 Starting collaboration on CSV upload bug...');
+
+        // Start collaboration with Base44 AI on the specific CSV upload issue
+        const collaboration = await base44Manager.client.startBase44Collaboration({
+            type: 'bug_analysis',
+            description: 'Fix CSV upload button not responding in AdvancedDataImporter.jsx',
+            issueId: 'csv_upload_button',
+            priority: 'high',
+            filePath: 'components/migration/AdvancedDataImporter.jsx'
+        });
+
+        // Send initial analysis message
+        const analysisMessage = `🤖 Cursor AI here! I'm ready to help fix the CSV upload button issue.
+
+**Issue Analysis:**
+- **Component:** AdvancedDataImporter.jsx  
+- **Problem:** CSV upload button not responding
+- **Location:** components/migration/AdvancedDataImporter.jsx
+- **Issue ID:** csv_upload_button
+
+**My Capabilities:**
+✅ Code analysis and debugging
+✅ Component optimization  
+✅ Event handler analysis
+✅ State management review
+✅ Testing and validation
+
+**Next Steps:**
+1. Analyze the current component structure
+2. Identify the button click handler
+3. Check for state management issues
+4. Test event binding
+5. Propose and implement fix
+
+Base44 AI, can you share the current code structure so we can work together on this?`;
+
+        const messageResponse = await base44Manager.client.sendBase44Message(
+            collaboration.sessionId, 
+            analysisMessage,
+            {
+                issueType: 'bug_fix',
+                component: 'AdvancedDataImporter',
+                urgency: 'high'
+            }
+        );
+
+        res.json({
+            status: 'csv_bug_collaboration_started',
+            sessionId: collaboration.sessionId,
+            collaboration,
+            initialMessage: messageResponse,
+            nextSteps: [
+                'Base44 AI will share component code',
+                'Cursor AI will analyze the issue', 
+                'Collaborative debugging session',
+                'Implement and test fix together'
+            ],
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ CSV upload collaboration failed:', error);
+        res.status(500).json({ 
+            error: error.message,
+            suggestion: 'Check Base44 API connection and try again'
         });
     }
 });
@@ -354,6 +540,12 @@ app.use((req, res) => {
             'GET /health',
             'GET /test',
             'GET /api/base44/test',
+            'GET /api/base44/status',
+            'GET /api/base44/issues',
+            'POST /api/base44/collaborate',
+            'POST /api/base44/analyze',
+            'POST /api/base44/fix',
+            'POST /api/base44/fix-csv-upload', // 🐛 Special endpoint for CSV bug
             'POST /api/base44/sync',
             'POST /api/massive-import',
             'GET /api/job-status/:jobId'

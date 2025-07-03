@@ -16,9 +16,23 @@ class Base44PlatformClient {
 
         // Real Base44 endpoints (implemented by Base44 AI)
         this.endpoints = {
+            // Original collaboration endpoint
             collaboration: `/apps/${this.config.appId}/functions/cursorAIIntegration`,
+            
+            // NEW: Dedicated Cursor AI API endpoints
+            cursorAPI: `/apps/${this.config.appId}/functions/base44ApiForCursorAI`,
+            status: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/status`,
+            entities: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/entities`, 
+            issues: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/issues`,
+            structure: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/structure`,
+            collaborate: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/collaborate`,
+            analyze: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/analyze`,
+            fix: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/fix`,
+            test: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/test`,
+            
+            // Management pages
             bridgePage: `/CursorAIBridge`,
-            health: `/apps/${this.config.appId}/health`
+            integrationPage: `/Base44Integration`
         };
 
         this.client = axios.create({
@@ -45,6 +59,12 @@ class Base44PlatformClient {
                 if (this.config.workspaceId) {
                     config.headers['X-Workspace-ID'] = this.config.workspaceId;
                 }
+                
+                // NEW: Add Cursor AI API Key for Base44's dedicated API
+                if (this.config.apiKey) {
+                    config.headers['X-Cursor-API-Key'] = this.config.apiKey;
+                }
+                
                 return config;
             },
             (error) => Promise.reject(error)
@@ -357,6 +377,146 @@ class Base44PlatformClient {
                 error: error.message,
                 timestamp: new Date().toISOString()
             };
+        }
+    }
+
+    // NEW: Real Base44 API Methods
+    async getBase44Status() {
+        try {
+            const response = await this.client.get(this.endpoints.status);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get Base44 status:', error.message);
+            return { status: 'disconnected', error: error.message };
+        }
+    }
+
+    async getBase44Issues() {
+        try {
+            const response = await this.client.get(this.endpoints.issues);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get Base44 issues:', error.message);
+            return { issues: [], error: error.message };
+        }
+    }
+
+    async getBase44Entities() {
+        try {
+            const response = await this.client.get(this.endpoints.entities);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get Base44 entities:', error.message);
+            return { entities: [], error: error.message };
+        }
+    }
+
+    async startBase44Collaboration(task) {
+        try {
+            const payload = {
+                action: 'start_collaboration',
+                task: {
+                    type: task.type || 'bug_analysis',
+                    description: task.description,
+                    issueId: task.issueId || null,
+                    priority: task.priority || 'medium'
+                },
+                cursorAI: {
+                    version: '1.0.0',
+                    capabilities: ['code_analysis', 'bug_fixing', 'optimization', 'testing'],
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            const response = await this.client.post(this.endpoints.collaborate, payload);
+            console.log('🤝 Started collaboration with Base44 AI:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to start Base44 collaboration:', error.message);
+            throw error;
+        }
+    }
+
+    async sendBase44Message(sessionId, message, context = {}) {
+        try {
+            const payload = {
+                action: 'send_message',
+                sessionId,
+                message,
+                context: {
+                    sender: 'cursor_ai',
+                    timestamp: new Date().toISOString(),
+                    ...context
+                }
+            };
+
+            const response = await this.client.post(this.endpoints.collaborate, payload);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to send message to Base44:', error.message);
+            throw error;
+        }
+    }
+
+    async analyzeCodeWithBase44(filePath, code, issueDescription) {
+        try {
+            const payload = {
+                action: 'analyze_code',
+                filePath,
+                code,
+                issueDescription,
+                analysis: {
+                    type: 'bug_analysis',
+                    focus: ['functionality', 'performance', 'security'],
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            const response = await this.client.post(this.endpoints.analyze, payload);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to analyze code with Base44:', error.message);
+            throw error;
+        }
+    }
+
+    async proposeFixToBase44(issueId, proposedFix) {
+        try {
+            const payload = {
+                action: 'propose_fix',
+                issueId,
+                proposedFix: {
+                    description: proposedFix.description,
+                    changes: proposedFix.changes,
+                    reasoning: proposedFix.reasoning,
+                    testPlan: proposedFix.testPlan || 'Manual testing required',
+                    confidence: proposedFix.confidence || 'medium',
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+            const response = await this.client.post(this.endpoints.fix, payload);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to propose fix to Base44:', error.message);
+            throw error;
+        }
+    }
+
+    async testWithBase44(testType, testData) {
+        try {
+            const payload = {
+                action: 'run_test',
+                testType,
+                testData,
+                timestamp: new Date().toISOString()
+            };
+
+            const response = await this.client.post(this.endpoints.test, payload);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to test with Base44:', error.message);
+            throw error;
         }
     }
 

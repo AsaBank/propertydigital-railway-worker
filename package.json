@@ -4,7 +4,10 @@
   "description": "PropertyDigital Railway Worker",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "./quick-test.sh",
+    "test-base44": "node test-base44-real-integration.js",
+    "fix-csv": "curl -X POST http://localhost:8080/api/base44/fix-csv-upload"
   },
   "dependencies": {
     "express": "^4.18.2",
