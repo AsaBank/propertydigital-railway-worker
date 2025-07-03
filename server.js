@@ -2,6 +2,7 @@ const express = require('express');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
+const Base44ConnectionManager = require('./base44-connection-manager');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -12,6 +13,7 @@ app.use(express.json({ limit: '10mb' }));
 
 let mongoClient;
 let db;
+let base44Manager;
 
 // 🔧 FIXED: Function name was wrong (connectToMontoDB -> connectToMongoDB)
 async function connectToMongoDB() {
@@ -31,25 +33,125 @@ async function connectToMongoDB() {
     }
 }
 
+// Initialize Base 44 connection
+async function connectToBase44() {
+    try {
+        console.log('🔗 Connecting to Base 44 service...');
+        base44Manager = new Base44ConnectionManager();
+        const connectionInfo = await base44Manager.connect();
+        console.log(`✅ Base 44 connected: ${connectionInfo.service}`);
+        return connectionInfo;
+    } catch (error) {
+        console.error('❌ Base 44 connection failed:', error.message);
+        // Don't retry automatically - let it fail gracefully
+        return null;
+    }
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
+    const base44Info = base44Manager ? base44Manager.getConnectionInfo() : { connected: false, type: 'not_initialized' };
+    
     res.json({
         status: 'healthy',
         message: 'PropertyDigital Railway Worker is running! 🚀',
         mongodb: db ? 'connected' : 'disconnected',
+        base44: {
+            connected: base44Info.connected,
+            service: base44Info.service || 'Unknown',
+            type: base44Info.type
+        },
         timestamp: new Date().toISOString(),
         memory_usage: process.memoryUsage(),
-        version: '2.0.0'
+        version: '2.1.0'
     });
 });
 
 // Test endpoint
 app.get('/test', (req, res) => {
+    const base44Info = base44Manager ? base44Manager.getConnectionInfo() : { connected: false };
+    
     res.json({
         message: 'Railway worker test successful!',
         timestamp: new Date().toISOString(),
-        mongodb: db ? 'connected' : 'disconnected'
+        mongodb: db ? 'connected' : 'disconnected',
+        base44: base44Info.connected ? 'connected' : 'disconnected'
     });
+});
+
+// Base 44 connection test endpoint
+app.get('/api/base44/test', async (req, res) => {
+    try {
+        if (!base44Manager) {
+            return res.status(503).json({
+                error: 'Base 44 service not initialized',
+                message: 'Check environment variables and restart service'
+            });
+        }
+
+        const connectionInfo = base44Manager.getConnectionInfo();
+        
+        if (!connectionInfo.connected) {
+            // Try to reconnect
+            const reconnectResult = await base44Manager.connect();
+            return res.json({
+                status: 'reconnected',
+                ...reconnectResult,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.json({
+            status: 'connected',
+            ...connectionInfo,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Base 44 test failed:', error);
+        res.status(500).json({
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Base 44 sync endpoint
+app.post('/api/base44/sync', async (req, res) => {
+    try {
+        const { entityType, data } = req.body;
+
+        if (!entityType || !data || !Array.isArray(data)) {
+            return res.status(400).json({
+                error: 'Missing required fields: entityType, data (array)'
+            });
+        }
+
+        if (!base44Manager || !base44Manager.getConnectionInfo().connected) {
+            return res.status(503).json({
+                error: 'Base 44 service not connected',
+                message: 'Please check connection and try again'
+            });
+        }
+
+        console.log(`🔄 Syncing ${data.length} ${entityType} records to Base 44`);
+        
+        const syncResult = await base44Manager.syncPropertyData(data);
+        
+        res.json({
+            status: 'completed',
+            entityType,
+            ...syncResult,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Base 44 sync failed:', error);
+        res.status(500).json({
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // 🚀 OPTIMIZED: Massive import with better memory management
@@ -251,6 +353,8 @@ app.use((req, res) => {
         available_endpoints: [
             'GET /health',
             'GET /test',
+            'GET /api/base44/test',
+            'POST /api/base44/sync',
             'POST /api/massive-import',
             'GET /api/job-status/:jobId'
         ]
@@ -258,10 +362,21 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Optimized Railway Worker running on port ${PORT}`);
     console.log(`📡 Health check: http://localhost:${PORT}/health`);
+    
+    // Initialize connections
     connectToMongoDB();
+    
+    // Initialize Base 44 connection (non-blocking)
+    setTimeout(async () => {
+        try {
+            await connectToBase44();
+        } catch (error) {
+            console.log('⚠️ Base 44 connection will be available when environment variables are configured');
+        }
+    }, 2000); // Wait 2 seconds for MongoDB to connect first
 });
 
 // Memory monitoring
