@@ -24,11 +24,59 @@ async function connectToMongoDB() {
         });
         await mongoClient.connect();
         db = mongoClient.db('propertydigital');
+        
+        // Make db available to routes
+        app.locals.db = db;
+        global.db = db; // For webhook handlers
+        
         console.log('✅ MongoDB connected successfully!');
     } catch (error) {
         console.error('❌ MongoDB connection failed:', error);
         setTimeout(connectToMongoDB, 5000);
     }
+}
+
+// 🔐 API Key Authentication Middleware
+const apiKeyAuth = (req, res, next) => {
+    // Skip auth for health check and test endpoints
+    if (req.path === '/health' || req.path === '/test') {
+        return next();
+    }
+    
+    const apiKey = req.headers['x-api-key'];
+    const base44ApiKey = process.env.BASE44_API_KEY;
+    
+    // If BASE44_API_KEY is not set, allow all requests (for development)
+    if (!base44ApiKey) {
+        console.warn('⚠️ BASE44_API_KEY not configured - running without authentication');
+        return next();
+    }
+    
+    if (!apiKey || apiKey !== base44ApiKey) {
+        return res.status(401).json({ 
+            error: 'Unauthorized',
+            message: 'Invalid or missing API key'
+        });
+    }
+    
+    next();
+};
+
+// Apply authentication to all routes except health/test
+app.use((req, res, next) => {
+    if (req.path === '/health' || req.path === '/test') {
+        return next();
+    }
+    return apiKeyAuth(req, res, next);
+});
+
+// 🔄 Base44 Integration Routes
+try {
+    const base44Routes = require('./base44-endpoints');
+    app.use(base44Routes);
+    console.log('✅ Base44 integration loaded');
+} catch (error) {
+    console.warn('⚠️ Base44 integration not loaded:', error.message);
 }
 
 // Health check endpoint
@@ -39,7 +87,11 @@ app.get('/health', (req, res) => {
         mongodb: db ? 'connected' : 'disconnected',
         timestamp: new Date().toISOString(),
         memory_usage: process.memoryUsage(),
-        version: '2.0.0'
+        version: '2.0.0',
+        base44_integration: {
+            enabled: !!process.env.BASE44_API_KEY,
+            app_id: process.env.BASE44_APP_ID || 'not_configured'
+        }
     });
 });
 
@@ -252,7 +304,11 @@ app.use((req, res) => {
             'GET /health',
             'GET /test',
             'POST /api/massive-import',
-            'GET /api/job-status/:jobId'
+            'GET /api/job-status/:jobId',
+            '--- Base44 Integration ---',
+            'POST /webhook/base44',
+            'GET /api/sync/:entityType',
+            'GET /api/schema/:entityType'
         ]
     });
 });
