@@ -85,38 +85,60 @@ app.post('/api/massive-import', async (req, res) => {
             const batch = records.slice(i, i + batchSize);
             
             try {
-                // Clean and prepare records
-                const cleanedBatch = batch.map(record => {
-                    const cleaned = {};
-                    
-                    // Map Hebrew fields to English for Payment entity
-                    if (entityType === 'Payment') {
-                        cleaned.tenant_id = record['מזהה דייר'] || record.tenant_id || 'unknown';
-                        cleaned.property_id = record['מזהה נכס'] || record.property_id || 'unknown';
-                        cleaned.amount = parseFloat(record['סכום'] || record.amount || 0);
-                        cleaned.payment_date = record['תאריך תשלום'] || record.payment_date || new Date().toISOString().split('T')[0];
-                        cleaned.payment_type = translatePaymentType(record['סוג תשלום'] || record.payment_type);
-                        cleaned.payment_method = translatePaymentMethod(record['אמצעי תשלום'] || record.payment_method);
-                        cleaned.status = translateStatus(record['סטטוס'] || record.status);
-                        cleaned.receipt_number = record['מספר אסמכתא'] || record.receipt_number;
-                        cleaned.description = record['הערות'] || record.description || record.notes;
-                    } else {
-                        // For other entities, copy as-is but clean
-                        Object.keys(record).forEach(key => {
-                            if (record[key] !== null && record[key] !== undefined && record[key] !== '') {
-                                cleaned[key] = record[key];
+                // Clean and prepare records with enhanced error tracking
+                const cleanedBatch = [];
+                const recordErrors = [];
+                
+                for (let idx = 0; idx < batch.length; idx++) {
+                    const record = batch[idx];
+                    const globalIndex = i + idx;
+                    try {
+                        const cleaned = {};
+                        
+                        // Map Hebrew fields to English for Payment entity
+                        if (entityType === 'Payment') {
+                            cleaned.tenant_id = record['מזהה דייר'] || record.tenant_id || 'unknown';
+                            cleaned.property_id = record['מזהה נכס'] || record.property_id || 'unknown';
+                            cleaned.amount = parseFloat(record['סכום'] || record.amount || 0);
+                            cleaned.payment_date = record['תאריך תשלום'] || record.payment_date || new Date().toISOString().split('T')[0];
+                            cleaned.payment_type = translatePaymentType(record['סוג תשלום'] || record.payment_type);
+                            cleaned.payment_method = translatePaymentMethod(record['אמצעי תשלום'] || record.payment_method);
+                            cleaned.status = translateStatus(record['סטטוס'] || record.status);
+                            cleaned.receipt_number = record['מספר אסמכתא'] || record.receipt_number;
+                            cleaned.description = record['הערות'] || record.description || record.notes;
+                            
+                            // Validation for Payment entity
+                            if (isNaN(cleaned.amount)) {
+                                throw new Error(`Invalid amount: ${record['סכום'] || record.amount}`);
                             }
+                        } else {
+                            // For other entities, copy as-is but clean
+                            Object.keys(record).forEach(key => {
+                                if (record[key] !== null && record[key] !== undefined && record[key] !== '') {
+                                    cleaned[key] = record[key];
+                                }
+                            });
+                        }
+                        
+                        // Add metadata
+                        cleaned.imported_at = new Date().toISOString();
+                        cleaned.imported_by = userId || 'railway_worker';
+                        cleaned.import_job_id = jobId;
+                        if (isChunk) cleaned.chunk_info = chunkInfo;
+                        
+                        cleanedBatch.push(cleaned);
+                    } catch (recordError) {
+                        const errorDetail = await errorLogger.logError('RECORD_PROCESSING_ERROR', {
+                            jobId,
+                            entityType,
+                            recordIndex: globalIndex,
+                            recordData: record,
+                            error: recordError.message,
+                            stack: recordError.stack
                         });
+                        recordErrors.push(errorDetail);
                     }
-                    
-                    // Add metadata
-                    cleaned.imported_at = new Date().toISOString();
-                    cleaned.imported_by = userId || 'railway_worker';
-                    cleaned.import_job_id = jobId;
-                    if (isChunk) cleaned.chunk_info = chunkInfo;
-                    
-                    return cleaned;
-                });
+                }
                 
                 // Insert batch
                 const result = await db.collection(entityType.toLowerCase()).insertMany(cleanedBatch, {
@@ -195,6 +217,40 @@ function translateStatus(status) {
     };
     return translations[status] || status || 'pending';
 }
+
+// Enhanced error logging system
+const errorLogger = {
+    logError: async (errorType, details) => {
+        const errorRecord = {
+            timestamp: new Date().toISOString(),
+            type: errorType,
+            jobId: details.jobId,
+            entityType: details.entityType,
+            recordIndex: details.recordIndex,
+            recordData: details.recordData,
+            error: details.error,
+            stack: details.stack
+        };
+        
+        // Log to console with structured format
+        console.error(`🚨 [${errorType}] Error in record ${details.recordIndex}:`, {
+            error: details.error,
+            record: details.recordData,
+            stack: details.stack
+        });
+        
+        // Save to database for persistent error tracking
+        if (db) {
+            try {
+                await db.collection('import_errors').insertOne(errorRecord);
+            } catch (dbError) {
+                console.error('Failed to save error to database:', dbError);
+            }
+        }
+        
+        return errorRecord;
+    }
+};
 
 // Job status endpoint
 app.get('/api/job-status/:jobId', async (req, res) => {
