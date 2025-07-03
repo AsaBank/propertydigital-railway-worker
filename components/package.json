@@ -1,0 +1,34 @@
+{
+  "name": "propertydigital-components",
+  "version": "1.0.0",
+  "description": "React components for PropertyDigital import system",
+  "main": "index.js",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "papaparse": "^5.4.1",
+    "xlsx": "^0.18.5",
+    "lucide-react": "^0.263.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/papaparse": "^5.3.7"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "react",
+    "csv",
+    "excel",
+    "import",
+    "property-management"
+  ],
+  "author": "PropertyDigital",
+  "license": "MIT"
+}
