@@ -14,29 +14,45 @@ class Base44PlatformClient {
             timeout: config.timeout || 10000
         };
 
-        // Real Base44 endpoints (implemented and enhanced by Base44 AI)
+        // REAL Base44 API endpoints (discovered from OpenAPI spec)
         this.endpoints = {
-            // ENHANCED: Original collaboration endpoint
-            collaboration: `/apps/${this.config.appId}/functions/cursorAIIntegration`,
+            // App Information
+            appInfo: `/api/apps/public/prod/by-id/${this.config.appId}`,
+            appBySlug: `/api/apps/public/prod/by-slug/{app_slug}`,
+            appLoginInfo: `/api/apps/public/login-info/by-id/${this.config.appId}`,
             
-            // ENHANCED: Dedicated Cursor AI API endpoints  
-            cursorAPI: `/apps/${this.config.appId}/functions/base44ApiForCursorAI`,
+            // Entity Management (CRUD operations)
+            entities: `/api/apps/${this.config.appId}/entities`,
+            entity: `/api/apps/${this.config.appId}/entities/{entity_name}`,
+            entityById: `/api/apps/${this.config.appId}/entities/{entity_name}/{entity_id}`,
+            entitiesBulk: `/api/apps/${this.config.appId}/entities/{entity_name}/bulk`,
+            entitiesImport: `/api/apps/${this.config.appId}/entities/{entity_name}/import`,
             
-            // NEW ENHANCED ENDPOINTS from Base44 AI:
-            status: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/status`,
-            structure: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/structure`,
-            analyze: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/analyze`,
+            // Functions (Serverless execution)
+            functions: `/api/apps/${this.config.appId}/functions`,
+            function: `/api/apps/${this.config.appId}/functions/{function_name}`,
+            functionLogs: `/api/apps/${this.config.appId}/functions/{function_name}/logs`,
+            activateFunctions: `/api/apps/${this.config.appId}/activate-backend-functions`,
             
-            // Legacy endpoints (keeping for compatibility):
-            entities: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/entities`, 
-            issues: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/issues`,
-            collaborate: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/collaborate`,
-            fix: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/fix`,
-            test: `/apps/${this.config.appId}/functions/base44ApiForCursorAI/test`,
+            // Integrations (Built-in services)
+            integrationSchema: `/api/apps/${this.config.appId}/integration-endpoints/schema`,
+            invokeLLM: `/api/apps/${this.config.appId}/integration-endpoints/Core/InvokeLLM`,
+            sendEmail: `/api/apps/${this.config.appId}/integration-endpoints/Core/SendEmail`,
+            uploadFile: `/api/apps/${this.config.appId}/integration-endpoints/Core/UploadFile`,
+            generateImage: `/api/apps/${this.config.appId}/integration-endpoints/Core/GenerateImage`,
             
-            // ENHANCED: Management pages (now working without parsing errors!)
-            bridgePage: `/CursorAIBridge`,
-            integrationPage: `/Base44Integration`
+            // Webhooks
+            webhookSubscribe: `/api/apps/${this.config.appId}/webhooks/subscribe`,
+            
+            // Authentication
+            appLogin: `/api/apps/${this.config.appId}/auth/login`,
+            verifyOtp: `/api/apps/${this.config.appId}/auth/verify-otp`,
+            changePassword: `/api/apps/${this.config.appId}/auth/change-password`,
+            
+            // Platform Level
+            apiDocs: `/docs`,
+            health: `/health`,
+            openApiSpec: `/openapi.json`
         };
 
         this.client = axios.create({
@@ -571,6 +587,206 @@ class Base44PlatformClient {
         } catch (error) {
             console.error('❌ Failed to test with Base44:', error.message);
             throw error;
+        }
+    }
+
+    // REAL Base44 API Methods (based on discovered API structure)
+    
+    // App Information
+    async getAppInfo() {
+        console.log('📱 Getting Base44 app information...');
+        try {
+            const response = await this.client.get(this.endpoints.appInfo);
+            console.log('✅ App info retrieved:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get app info:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    async getAppLoginInfo() {
+        console.log('🔐 Getting app login information...');
+        try {
+            const response = await this.client.get(this.endpoints.appLoginInfo);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get app login info:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    // Entity Management
+    async getEntities(entityName) {
+        console.log(`📊 Getting entities: ${entityName}...`);
+        try {
+            const endpoint = this.endpoints.entity.replace('{entity_name}', entityName);
+            const response = await this.client.get(endpoint);
+            console.log(`✅ Entities retrieved for ${entityName}:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to get entities for ${entityName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    async createEntity(entityName, entityData) {
+        console.log(`➕ Creating entity in ${entityName}...`);
+        try {
+            const endpoint = this.endpoints.entity.replace('{entity_name}', entityName);
+            const response = await this.client.post(endpoint, entityData);
+            console.log(`✅ Entity created in ${entityName}:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to create entity in ${entityName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    async updateEntity(entityName, entityId, entityData) {
+        console.log(`✏️ Updating entity ${entityId} in ${entityName}...`);
+        try {
+            const endpoint = this.endpoints.entityById
+                .replace('{entity_name}', entityName)
+                .replace('{entity_id}', entityId);
+            const response = await this.client.put(endpoint, entityData);
+            console.log(`✅ Entity updated in ${entityName}:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to update entity in ${entityName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    async deleteEntity(entityName, entityId) {
+        console.log(`🗑️ Deleting entity ${entityId} from ${entityName}...`);
+        try {
+            const endpoint = this.endpoints.entityById
+                .replace('{entity_name}', entityName)
+                .replace('{entity_id}', entityId);
+            const response = await this.client.delete(endpoint);
+            console.log(`✅ Entity deleted from ${entityName}`);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to delete entity from ${entityName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    // Function Execution
+    async executeFunction(functionName, functionData = {}) {
+        console.log(`⚡ Executing function: ${functionName}...`);
+        try {
+            const endpoint = this.endpoints.function.replace('{function_name}', functionName);
+            const response = await this.client.post(endpoint, functionData);
+            console.log(`✅ Function ${functionName} executed:`, response.data);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to execute function ${functionName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    async getFunctionLogs(functionName) {
+        console.log(`📋 Getting logs for function: ${functionName}...`);
+        try {
+            const endpoint = this.endpoints.functionLogs.replace('{function_name}', functionName);
+            const response = await this.client.get(endpoint);
+            return response.data;
+        } catch (error) {
+            console.error(`❌ Failed to get logs for ${functionName}:`, error.message);
+            return { error: error.message };
+        }
+    }
+
+    // Built-in Integrations
+    async invokeLLM(prompt, options = {}) {
+        console.log('🤖 Invoking Base44 LLM...');
+        try {
+            const response = await this.client.post(this.endpoints.invokeLLM, {
+                prompt,
+                ...options
+            });
+            console.log('✅ LLM response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to invoke LLM:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    async sendEmail(emailData) {
+        console.log('📧 Sending email via Base44...');
+        try {
+            const response = await this.client.post(this.endpoints.sendEmail, emailData);
+            console.log('✅ Email sent:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to send email:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    async uploadFile(fileData) {
+        console.log('📁 Uploading file to Base44...');
+        try {
+            const response = await this.client.post(this.endpoints.uploadFile, fileData);
+            console.log('✅ File uploaded:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to upload file:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    async generateImage(imagePrompt, options = {}) {
+        console.log('🎨 Generating image via Base44...');
+        try {
+            const response = await this.client.post(this.endpoints.generateImage, {
+                prompt: imagePrompt,
+                ...options
+            });
+            console.log('✅ Image generated:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to generate image:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    // Webhook Management
+    async subscribeWebhook(webhookData) {
+        console.log('🪝 Subscribing to Base44 webhook...');
+        try {
+            const response = await this.client.post(this.endpoints.webhookSubscribe, webhookData);
+            console.log('✅ Webhook subscribed:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to subscribe webhook:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    // Platform Information
+    async getPlatformHealth() {
+        console.log('🏥 Checking Base44 platform health...');
+        try {
+            const response = await this.client.get(this.endpoints.health);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Platform health check failed:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    async getApiSchema() {
+        console.log('📋 Getting Base44 API schema...');
+        try {
+            const response = await this.client.get(this.endpoints.openApiSpec);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Failed to get API schema:', error.message);
+            return { error: error.message };
         }
     }
 
